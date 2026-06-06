@@ -1,5 +1,5 @@
 """
-側邊欄元件 — API Key 輸入、遊戲控制
+側邊欄元件 — 遊戲控制、說明（無 API Key 輸入）
 """
 import streamlit as st
 from utils.session import reset_game
@@ -21,20 +21,8 @@ def render_sidebar():
 
         st.divider()
 
-        # ── API Key 設定 ──────────────────────────────
-        st.markdown("### 🔑 Gemini API Key")
-        api_key = st.text_input(
-            label="API Key",
-            type="password",
-            placeholder="AIza...",
-            value=st.session_state.get("api_key", ""),
-            label_visibility="collapsed",
-        )
-        if api_key:
-            st.session_state["api_key"] = api_key
-            st.success("✅ API Key 已設定", icon="🔐")
-        else:
-            st.warning("請輸入 Gemini API Key", icon="⚠️")
+        # ── 連線狀態 ──────────────────────────────────
+        st.success("✅ 系統已連線", icon="🔐")
 
         st.divider()
 
@@ -43,7 +31,6 @@ def render_sidebar():
             st.markdown("### 📊 本局狀態")
             q_count = st.session_state.get("question_count", 0)
             st.metric("已提問次數", q_count)
-
             st.divider()
 
         # ── 遊戲控制按鈕 ─────────────────────────────
@@ -51,11 +38,7 @@ def render_sidebar():
 
         col1, col2 = st.columns(2)
         with col1:
-            if st.button(
-                "🆕 新遊戲",
-                use_container_width=True,
-                disabled=not st.session_state.get("api_key"),
-            ):
+            if st.button("🆕 新遊戲", use_container_width=True):
                 reset_game()
                 reset_canary()
                 st.rerun()
@@ -92,7 +75,7 @@ def render_sidebar():
                 """
             )
 
-        # ── 技術說明 ──────────────────────────────────
+        # ── 防禦機制說明 ──────────────────────────────
         with st.expander("🛡️ 防禦機制說明", expanded=False):
             st.markdown(
                 """

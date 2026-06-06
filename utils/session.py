@@ -23,7 +23,7 @@ def init_session_state():
 
 
 def reset_game():
-    """重置遊戲狀態（保留 API key 設定）"""
+    """重置遊戲狀態"""
     keys_to_reset = [
         "game_started", "game_over", "messages", "api_history",
         "question_count", "story", "answer_keyword",

@@ -1,8 +1,10 @@
 """
 Gemini API 封裝 — 含多層提示注入防禦機制
+API Key 從 .streamlit/secrets.toml 讀取，不寫死在程式碼裡
 """
 import google.generativeai as genai
 import streamlit as st
+import json, re
 from utils.prompt_engine import (
     build_system_instruction,
     build_game_init_prompt,
@@ -10,10 +12,11 @@ from utils.prompt_engine import (
 )
 
 
-def configure_api():
-    """從 session state 設定 Gemini API Key"""
-    api_key = st.session_state.get("api_key", "")
+def configure_api() -> bool:
+    """從 st.secrets 讀取 API Key 並設定 Gemini"""
+    api_key = st.secrets.get("GEMINI_API_KEY", "")
     if not api_key:
+        st.error("❌ 伺服器未設定 GEMINI_API_KEY，請聯絡管理員。")
         return False
     genai.configure(api_key=api_key)
     return True
@@ -38,7 +41,7 @@ def start_new_game() -> tuple[str, str]:
     回傳 (story_text, answer_keyword)
     """
     if not configure_api():
-        raise ValueError("請先輸入有效的 Gemini API Key")
+        raise ValueError("API Key 未設定，無法啟動遊戲")
 
     init_model = genai.GenerativeModel(
         model_name="gemini-2.0-flash",
@@ -51,9 +54,7 @@ def start_new_game() -> tuple[str, str]:
         ),
     )
     response = init_model.generate_content(build_game_init_prompt())
-    import json, re
     text = response.text.strip()
-    # 移除可能的 markdown code fence
     text = re.sub(r"```json|```", "", text).strip()
     data = json.loads(text)
     return data["story"], data["answer"]
@@ -62,7 +63,6 @@ def start_new_game() -> tuple[str, str]:
 def ask_question(user_input: str) -> str:
     """
     將使用者問題送到 Gemini，回傳 AI 的回應。
-    user_input 已由 wrap_user_message 包裝以防禦注入。
     """
     if not configure_api():
         raise ValueError("API Key 未設定")
@@ -70,13 +70,9 @@ def ask_question(user_input: str) -> str:
     model = get_model()
     chat = model.start_chat(history=st.session_state.api_history)
 
-    # 包裝使用者訊息（防禦層）
     wrapped = wrap_user_message(user_input)
-
     response = chat.send_message(wrapped)
     reply = response.text.strip()
 
-    # 更新對話 history（供下次 API 呼叫使用）
     st.session_state.api_history = chat.history
-
     return reply
