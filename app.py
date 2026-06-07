@@ -16,7 +16,7 @@ try:
     with open("assets/style.css", encoding="utf-8") as f:
         st.markdown(f"<style>{f.read()}</style>", unsafe_allow_html=True)
 except FileNotFoundError:
-    pass # 防止一開始缺少 assets 資料夾報錯
+    pass 
 
 init_session_state()
 render_game_page()
