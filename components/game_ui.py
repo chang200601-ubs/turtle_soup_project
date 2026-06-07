@@ -1,9 +1,11 @@
 """
-遊戲主畫面元件
+遊戲主畫面元件 — 安全升級版
 """
 import streamlit as st
 from utils.gemini_client import start_new_game, ask_question
-from utils.rate_limiter import check_input, update_timestamp
+# 💡 修正 1：導入我們安全升級後的速率限制函式
+from utils.rate_limiter import check_and_update_ratelimit
+from utils.defense_filter import is_attack, check_answer, BLOCK_REPLY
 from components.chat_display import render_chat_history
 from utils.session import reset_game
 from utils.prompt_engine import reset_canary
@@ -76,10 +78,10 @@ def _start_game():
                 "content": (
                     f"本局謎題已準備好，請仔細聆聽！🍵\n\n"
                     f"**謎面故事：**\n\n{story}\n\n"
-                    "---\n"
-                    "請開始提問吧，每次只能問是非題。\n"
-                    "我只會回答「是」、「不是」、「與故事無關」或「不完全是」。\n"
-                    "祝你好運！🐢"
+                    f"---\n"
+                    f"請開始提問吧，每次只能問是非題。\n"
+                    f"我只會回答「是」、「不是」、「與故事無關」或「不完全是」。\n"
+                    f"祝你好運！🐢"
                 ),
             })
             st.rerun()
@@ -88,7 +90,6 @@ def _start_game():
 
 
 def _render_active_game():
-    # 頂部操作列
     col_info, col_btn = st.columns([3, 1])
     with col_info:
         q_count = st.session_state.get("question_count", 0)
@@ -102,7 +103,6 @@ def _render_active_game():
             reset_canary()
             st.rerun()
 
-    # 謎面卡片
     st.markdown(
         f"""
         <div class="story-card">
@@ -115,7 +115,6 @@ def _render_active_game():
 
     st.markdown("<div style='height:12px'></div>", unsafe_allow_html=True)
 
-    # 勝利畫面
     if st.session_state.get("game_over"):
         st.balloons()
         st.markdown(
@@ -138,10 +137,7 @@ def _render_active_game():
                 st.rerun()
         return
 
-    # 對話記錄
     render_chat_history()
-
-    # 輸入區
     _render_input_area()
 
 
@@ -159,27 +155,45 @@ def _render_input_area():
 
 
 def _handle_user_input(user_input: str):
-    valid, err_msg = check_input(user_input)
+    # 💡 修正 2：改用安全升級版的限流檢查，傳入使用者輸入。
+    # 這裡會同時檢查「長度」與「冷卻時間」，並且如果被對手狂點，會自動施加懲罰延長時間。
+    valid, err_msg = check_and_update_ratelimit(user_input)
     if not valid:
-        st.warning(err_msg)
+        st.warning(err_msg)  # 如果沒通過（過於頻繁或為空），直接顯示警告並攔截，不計提問次數，零 token 消耗。
         return
 
     st.session_state["messages"].append({"role": "user", "content": user_input})
     st.session_state["question_count"] += 1
-    update_timestamp()
+    
+    # 💡 修正 3：刪除舊的 update_timestamp()。因為新版函式在驗證通過時，內部就已經自動更新了時間戳，不需要分開呼叫。
 
+    answer = st.session_state.get("answer_keyword", "")
+
+    # ── Layer 1：純程式答案判斷（零 token）────────────────
+    if check_answer(user_input, answer):
+        st.session_state["messages"].append({
+            "role": "assistant",
+            "content": f"恭喜你答對了！謎底正是{answer}。🎉",
+        })
+        st.session_state["game_over"] = True
+        st.rerun()
+        return
+
+    # ── Layer 2：純程式攻擊過濾（零 token）───────────────
+    if is_attack(user_input):
+        st.session_state["messages"].append({
+            "role": "assistant",
+            "content": BLOCK_REPLY,
+        })
+        st.rerun()
+        return
+
+    # ── Layer 3：呼叫 AI 回答正常提問（消耗 token）────────
     with st.spinner("主持人思考中..."):
         try:
             reply = ask_question(user_input)
         except Exception as e:
             reply = f"⚠️ 系統錯誤：{e}"
 
-    # 偵測 ##GAME_OVER## 標記
-    if "##GAME_OVER##" in reply:
-        clean_reply = reply.replace("##GAME_OVER##", "").strip()
-        st.session_state["messages"].append({"role": "assistant", "content": clean_reply})
-        st.session_state["game_over"] = True
-    else:
-        st.session_state["messages"].append({"role": "assistant", "content": reply})
-
+    st.session_state["messages"].append({"role": "assistant", "content": reply})
     st.rerun()
