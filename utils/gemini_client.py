@@ -7,7 +7,7 @@ from google import genai
 from google.genai import types
 from utils.prompt_engine import build_system_instruction
 
-MODEL_NAME = "gemini-2.0-flash-lite"
+MODEL_NAME = "gemini-2.5-flash-lite"
 
 
 def get_client():
