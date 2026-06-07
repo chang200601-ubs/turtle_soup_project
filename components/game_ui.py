@@ -143,7 +143,7 @@ def _render_active_game():
 
 def _render_input_area():
     st.markdown(
-        "<div class='input-hint'>每題最多 50 字元，只能提問是非題</div>",
+        "<div class='input-hint'>只能提問是非題</div>",
         unsafe_allow_html=True,
     )
     user_input = st.chat_input(
