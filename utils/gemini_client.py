@@ -11,18 +11,19 @@ MODEL_NAME = "gemini-2.0-flash-lite"
 
 
 def get_client():
-    # 💡 優先從 st.secrets 抓取，這在 Streamlit Cloud 是最穩定的做法
+    # 1. 優先從 st.secrets 抓取
     try:
         api_key = st.secrets["GEMINI_API_KEY"]
     except KeyError:
-        # 如果 secrets 抓不到，嘗試抓作業系統環境變數
-        import os
-        api_key = os.environ.get("GEMINI_API_KEY")
+        # 2. 備用方案：從環境變數抓取
+        api_key = os.environ.get("GEMINI_API_KEY", "")
 
     if not api_key:
         st.error("❌ 系統錯誤：API Key 未設定，請檢查雲端 Secrets 設定。")
         return None
         
+    # 💡 關鍵修正：必須在 Client 括號內明確寫出 api_key=api_key！
+    # 絕對不要留空，這樣能強迫 SDK 走 API Key 驗證，而不是錯誤的 OAuth2 驗證。
     return genai.Client(api_key=api_key)
 
 
